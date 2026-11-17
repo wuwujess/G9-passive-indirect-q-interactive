@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grammar Mission｜全班即時闖關</title>
+<style>
+:root{font-family:Arial,"Noto Sans TC",sans-serif;color:#202938;background:#f3f6fc}
+*{box-sizing:border-box}body{margin:0;padding:16px}.app{max-width:1100px;margin:auto}
+header,.panel{background:#fff;border-radius:18px;padding:20px;box-shadow:0 6px 22px #182b4a0d;margin-bottom:16px}
+header{display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap}
+h1{margin:0 0 5px;font-size:1.65rem}.muted{color:#667085;font-size:.92rem}
+.layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(270px,.8fr);gap:16px}
+.badge{display:inline-block;border-radius:999px;background:#e8edff;color:#303f9f;padding:7px 11px;font-size:.88rem;font-weight:bold}
+.progress{height:8px;background:#e8edf4;border-radius:9px;margin:14px 0 20px;overflow:hidden}.bar{height:100%;background:#3949ab;width:0}
+.question{font-size:1.25rem;font-weight:700;line-height:1.5;margin:12px 0 16px}
+.option{display:block;border:1px solid #d6dce6;border-radius:12px;padding:12px;margin:9px 0;cursor:pointer;line-height:1.45}
+.option:hover{background:#f6f8ff;border-color:#8996db}.option input{margin-right:9px}
+button{border:0;border-radius:11px;padding:12px 16px;font-size:1rem;cursor:pointer;background:#303f9f;color:white}
+button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#eef1f6;color:#263247}
+input[type=text]{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:1rem;margin:7px 0 12px}
+.feedback{padding:13px;border-radius:12px;background:#f1f5f9;line-height:1.6;margin:14px 0}.correct{border-left:5px solid #16834a}.wrong{border-left:5px solid #d97706}
+.hidden{display:none!important}.boardrow{display:flex;align-items:center;gap:10px;padding:11px 8px;border-bottom:1px solid #edf0f5}
+.rank{width:27px;font-weight:bold;color:#667085}.avatar{font-size:1.65rem;width:38px;text-align:center}.player{flex:1;min-width:0}.name{font-weight:bold;overflow-wrap:anywhere}.detail{font-size:.82rem;color:#667085;margin-top:3px}.points{font-weight:bold;white-space:nowrap}
+.mycard{background:#f4f6ff;border-radius:12px;padding:12px;margin:12px 0;line-height:1.6}
+.notice{padding:12px;background:#fff7e6;border:1px solid #f4d58b;border-radius:12px;line-height:1.5}
+.end{text-align:center;padding:22px 0}.bigavatar{font-size:5rem}
+@media(max-width:760px){.layout{grid-template-columns:1fr}body{padding:9px}header,.panel{padding:16px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+ <div><h1>🚀 Grammar Mission</h1><div class="muted">九年級英文全班即時闖關｜被動語態 × 間接問句</div></div>
+ <div><span class="badge" id="connection">尚未連線</span></div>
+</header>
+
+<div id="setup" class="panel">
+ <h2>加入班級任務</h2>
+ <p class="muted">輸入暱稱與老師提供的班級代碼，即可加入排行榜。建議使用座號或不含個資的暱稱。</p>
+ <label for="nickname">你的暱稱</label><input id="nickname" type="text" maxlength="18" placeholder="例如：08號小火龍">
+ <label for="room">班級代碼（全班需輸入相同代碼）</label><input id="room" type="text" maxlength="24" placeholder="例如：806GRAMMAR">
+ <button id="join">加入闖關</button>
+ <div id="setupError" class="muted" style="margin-top:10px"></div>
+ <div class="notice" style="margin-top:16px"><strong>老師第一次使用：</strong>此版本需要先連接免費 Firebase Realtime Database，才能讓不同裝置即時同步分數。下載檔案內有設定說明；未設定前，排行榜無法跨裝置連線。</div>
+</div>
+
+<div id="gameArea" class="layout hidden">
+ <main class="panel">
+  <div class="row" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+   <span class="badge" id="level">LEVEL 1 · 新手暖身</span><span class="muted" id="count">第 1 / 36 題</span>
+  </div>
+  <div class="progress"><div id="bar" class="bar"></div></div>
+  <div id="topic" class="muted"></div><div id="question" class="question"></div>
+  <div id="options"></div>
+  <div id="feedback" class="feedback hidden"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+   <button id="check" disabled>確認答案</button><button id="next" class="hidden">下一題 →</button>
+  </div>
+  <div class="mycard" id="myStatus">加入成功後，這裡會顯示你的積分與角色。</div>
+ </main>
+ <aside class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">🏆 即時排行榜</h2><span class="muted" id="playersCount">0 人</span></div>
+  <p class="muted">依積分即時更新；同分時先完成者優先顯示。</p>
+  <div id="leaderboard"></div>
+  <p class="muted">角色會依積分與答題正確率變化。這是學習遊戲，不代表學生能力高低。</p>
+ </aside>
+</div>
+
+<div id="result" class="panel end hidden"></div>
+<div class="panel muted">
+ <strong>教師提示：</strong>使用暱稱即可，不要要求學生輸入姓名、電話或其他個人資料。所有同學使用相同班級代碼；不同班級請使用不同代碼。
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+/* ===== 老師只需要把下方 Firebase 設定換成自己的專案資料 ===== */
+const firebaseConfig = {
+  apiKey: "請貼上你的_API_KEY",
+  authDomain: "請貼上你的_PROJECT_ID.firebaseapp.com",
+  databaseURL: "https://請貼上你的_PROJECT_ID-default-rtdb.firebaseio.com",
+  projectId: "請貼上你的_PROJECT_ID",
+  storageBucket: "請貼上你的_PROJECT_ID.appspot.com",
+  messagingSenderId: "請貼上你的_MESSAGING_SENDER_ID",
+  appId: "請貼上你的_APP_ID"
+};
+/* =========================================================== */
+
+const qs = [
+
+["被動語態","The classroom _____ every day.",["cleans","is cleaned","cleaned","is cleaning"],1,"every day 表示習慣；classroom 是被打掃的對象，所以用 is + p.p."],
+["被動語態","English _____ in many countries.",["speaks","is spoken","spoke","is speaking"],1,"English 是被使用的語言，使用被動語態 is spoken。"],
+["被動語態","The window was _____ by Tom yesterday.",["break","broke","broken","breaking"],2,"was + 過去分詞。break 的三態是 break–broke–broken。"],
+["被動語態","Which sentence is passive?",["Amy loves dogs.","Jack runs fast.","The cake was made by Mom.","They play basketball."],2,"The cake 是接受動作的對象，was made 是被動語態。"],
+["被動語態","This book _____ by many students last year.",["reads","is read","was read","read"],2,"last year 表示過去，使用 was + 過去分詞。read 的過去分詞拼法仍是 read。"],
+["被動語態","The room _____ now.",["is cleaning","is being cleaned","cleaned","was clean"],1,"now 表示正在進行；現在進行式被動語態為 am/is/are being + p.p."],
+["間接問句","Do you know _____ he is?",["where","where is","is where","where does"],0,"間接問句使用「疑問詞 + 主詞 + 動詞」，所以是 where he is。"],
+["間接問句","Can you tell me _____?",["what time is it","what time it is","is it what time","what is it time"],1,"間接問句要用直述句語序：what time + it + is。"],
+["間接問句","I don't know _____ she likes cats.",["does","that does","if","what does"],2,"這是是否疑問句的間接問句，可以用 if 或 whether。"],
+["間接問句","Please tell me _____ you are happy.",["whether","what","where","who"],0,"句子在問「是否開心」，可用 whether 或 if。"],
+["間接問句","Do you know where _____?",["does he live","he lives","lives he","is he live"],1,"where 後面接主詞 he，再接動詞 lives。"],
+["間接問句","I wonder _____ the store is open.",["what","if","where does","that if"],1,"I wonder if... 表示「我想知道是否……」。"],
+["被動語態","The homework _____ by the students last night.",["finished","was finished","is finishing","has finish"],1,"last night 是過去時間，使用 was + finished。"],
+["被動語態","These photos _____ by my sister now.",["are taking","are being taken","were took","is taken"],1,"These photos 是複數主詞，現在進行式被動語態為 are being taken。"],
+["被動語態","The message has _____ to all the students.",["send","sent","been sent","being sent"],2,"現在完成式被動語態為 has/have been + 過去分詞。"],
+["被動語態","Which sentence is correct?",["The letters was sent yesterday.","The letters were sent yesterday.","The letters were send yesterday.","The letters sent yesterday by him."],1,"letters 是複數，所以用 were；send 的過去分詞是 sent。"],
+["被動語態","People speak English here. Choose the passive sentence.",["English is spoken here.","English speaks here.","English was speak here.","English is speaking here."],0,"受詞 English 改為主詞，現在簡單式被動語態用 is spoken。"],
+["間接問句","Could you tell me _____?",["when will the bus arrive","when the bus will arrive","when does the bus arrive","when did the bus arrive tomorrow"],1,"間接問句用直述句語序；will 放在主詞 the bus 後面。"],
+["間接問句","I wonder _____ he didn't come to school.",["why","why did","why was","that why"],0,"why 後面接主詞 he 和動詞 didn't come，不倒裝。"],
+["間接問句","Do you know _____ Mary has finished her homework?",["what","whether","where does","why did"],1,"這裡詢問「是否完成」，可以用 whether 或 if；後面是直述句語序。"],
+["間接問句","I don't know _____ to take the train or the bus.",["what","whether","where","that"],1,"whether...or... 可表示「是……還是……」，此處用 whether。"],
+["間接問句","Which sentence is correct?",["Can you tell me where is the bank?","Can you tell me where the bank is?","Can you tell where does the bank is?","Can you tell me where the bank?"],1,"間接問句的 where 後面用主詞 the bank + 動詞 is。"],
+["間接問句","She asked me _____ I was tired.",["that","what","if","where did"],2,"轉述是否疑問句時，可以用 if 引導，且不用倒裝。"],
+["混合挑戰","The school gate _____ at 7:30 every morning.",["opens by the guard","is opened by the guard","is opening by the guard","was open by the guard"],1,"every morning 是習慣，school gate 是被開啟的對象，使用 is opened。"],
+["混合挑戰","The computer _____ when I entered the room.",["was being repaired","is repairing","was repaired by someone now","has repairing"],0,"當我走進房間時，修理動作正在進行，所以用過去進行式被動語態 was being repaired。"],
+["混合挑戰","The winner _____ tomorrow.",["will announce","will be announced","will be announce","is announced yesterday"],1,"tomorrow 是未來時間；未來式被動語態為 will be + p.p."],
+["混合挑戰","Which sentence is NOT correct?",["The room is cleaned every day.","The bike was stolen yesterday.","The story was wrote by Sam.","The food will be served soon."],2,"write 的過去分詞是 written，不是 wrote。正確句子是 The story was written by Sam."],
+["混合挑戰","Do you remember _____?",["where did we park the car","where we parked the car","where parked we the car","where do we parked the car"],1,"間接問句使用主詞 + 動詞；過去式 parked 不需要 did。"],
+["混合挑戰","I'm not sure _____ the game will be canceled.",["what","whether","where does","that whether"],1,"I'm not sure whether... 表示「我不確定是否……」。"],
+["混合挑戰","The teacher asked us _____ we had finished the project.",["if","what did","where did","that if"],0,"這是轉述是否疑問句，使用 if + 主詞 + 動詞。"],
+["混合挑戰","Choose the correct sentence.",["I wonder what is his name.","I wonder what his name is.","I wonder what does his name mean?","I wonder what his name."],1,"間接問句使用直述句語序：what + his name + is。"],
+["混合挑戰","The museum _____ in 1998 and _____ by thousands of people every year.",["built; visits","was built; is visited","was build; was visited","is built; visited"],1,"in 1998 表示過去，用 was built；every year 表示習慣，用 is visited。"],
+["混合挑戰","Which question can be changed to 'I don't know whether she is at home.'?",["Where is she?","Is she at home?","Why is she at home?","Who is at home?"],1,"whether she is at home 是「她是否在家」，對應一般疑問句 Is she at home?"],
+["混合挑戰","Choose the correct sentence.",["Can you tell me if is he busy?","Can you tell me whether he is busy?","Can you tell me does he busy?","Can you tell me whether is he busy?"],1,"whether 後面使用主詞 he + 動詞 is，不可倒裝。"],
+["混合挑戰","The lost dog _____ by a kind family, but nobody knows _____ it belongs to.",["was found; who","found; who does","was find; whose","is finding; who"],0,"狗是被找到的，所以用 was found；who it belongs to 是間接問句語序。"],
+["混合挑戰","The coach wants to know _____ the players are ready.",["that","if","what do","where do"],1,"詢問球員「是否準備好了」，使用 if + 主詞 + 動詞。"]
+];
+const $=id=>document.getElementById(id);
+let db=null, room="", playerId="", nickname="", current=0, selected=null, locked=false;
+let myData={score:0,correct:0,answered:0,finished:false,answers:{}};
+let players={};
+const avatarFor = p => {
+ const rate=p.answered ? p.correct/p.answered : 0;
+ if(p.finished && p.score>=31 && rate>=.85) return {icon:"👑",title:"Grammar Legend"};
+ if(p.score>=25 && rate>=.8) return {icon:"🐉",title:"Grammar Dragon"};
+ if(p.score>=16 && rate>=.65) return {icon:"🦊",title:"Quick Fox"};
+ if(p.score>=8) return {icon:"🐢",title:"Steady Turtle"};
+ if(p.answered>=5 && rate<.4) return {icon:"🐣",title:"Brave Beginner"};
+ if(p.score>=1) return {icon:"🐱",title:"Grammar Cat"};
+ return {icon:"🌱",title:"Grammar Seed"};
+};
+const level=n=>n<12?"LEVEL 1 · 新手暖身":n<24?"LEVEL 2 · 任務進階":"LEVEL 3 · 終極挑戰";
+function renderQuestion(){
+ const q=qs[current];selected=null;locked=false;
+ $("level").textContent=level(current);$("count").textContent=`第 ${current+1} / ${qs.length} 題`;
+ $("bar").style.width=((current+1)/qs.length*100)+"%";$("topic").textContent="題型："+q[0];$("question").textContent=q[1];
+ $("options").innerHTML="";
+ q[2].forEach((o,j)=>{const lab=document.createElement("label");lab.className="option";const r=document.createElement("input");r.type="radio";r.name="answer";r.value=j;r.addEventListener("change",()=>{$("check").disabled=false;selected=j});lab.append(r,document.createTextNode(" "+String.fromCharCode(65+j)+". "+o));$("options").append(lab)});
+ $("feedback").classList.add("hidden");$("check").classList.remove("hidden");$("check").disabled=true;$("next").classList.add("hidden");
+}
+function updateMyStatus(){
+ const a=avatarFor(myData);
+ $("myStatus").innerHTML=`<strong>${a.icon} ${nickname}</strong>｜${a.title}<br>⭐ 積分：<strong>${myData.score}</strong>　答對：${myData.correct}/${myData.answered}`;
+}
+function renderBoard(){
+ const arr=Object.entries(players).map(([id,p])=>({...p,id})).sort((a,b)=>(b.score||0)-(a.score||0)||(a.joinedAt||0)-(b.joinedAt||0));
+ $("playersCount").textContent=arr.length+" 人";
+ $("leaderboard").innerHTML="";
+ arr.forEach((p,n)=>{const a=avatarFor(p),row=document.createElement("div");row.className="boardrow";
+ row.innerHTML=`<div class="rank">${n+1}</div><div class="avatar">${a.icon}</div><div class="player"><div class="name"></div><div class="detail"></div></div><div class="points">${p.score||0} 分</div>`;
+ row.querySelector(".name").textContent=p.nickname+(p.id===playerId?"（你）":"");
+ row.querySelector(".detail").textContent=`${a.title} · 答對 ${p.correct||0}/${p.answered||0}${p.finished?" · 已通關":""}`;
+ $("leaderboard").append(row)});
+ if(players[playerId]){myData={...myData,...players[playerId]};updateMyStatus()}
+}
+function failSetup(msg){$("setupError").textContent=msg;$("connection").textContent="尚未連線"}
+$("join").addEventListener("click",async()=>{
+ nickname=$("nickname").value.trim();room=$("room").value.trim().replace(/[.#$[\]/]/g,"_");
+ if(!nickname||!room){failSetup("請輸入暱稱與班級代碼。");return}
+ if(firebaseConfig.apiKey.startsWith("請貼上")){failSetup("尚未設定 Firebase。請先依下載檔中的「教師設定說明」完成設定。");return}
+ try{
+  const app=initializeApp(firebaseConfig);db=getDatabase(app);
+  playerId=localStorage.getItem("grammarMission_"+room)||("p_"+crypto.randomUUID().replaceAll("-","").slice(0,18));
+  localStorage.setItem("grammarMission_"+room,playerId);
+  const playerRef=ref(db,`rooms/${room}/players/${playerId}`);
+  const snap=await new Promise((resolve,reject)=>{let off=onValue(playerRef,s=>{off();resolve(s)},reject)});
+  if(snap.exists()){myData={...myData,...snap.val()};current=Math.min(myData.answered||0,qs.length-1)}
+  else {myData={nickname,score:0,correct:0,answered:0,finished:false,answers:{},joinedAt:Date.now()};await set(playerRef,myData)}
+  await update(playerRef,{nickname});
+  onValue(ref(db,`rooms/${room}/players`),s=>{players=s.val()||{};renderBoard();$("connection").textContent="🟢 即時同步中"});
+  $("setup").classList.add("hidden");$("gameArea").classList.remove("hidden");
+  if(myData.finished){showResult()}else renderQuestion();
+ }catch(e){failSetup("連線失敗。請檢查 Firebase 設定與資料庫規則。錯誤："+e.message)}
+});
+$("check").addEventListener("click",async()=>{
+ if(selected===null||locked)return;locked=true;const q=qs[current],correct=selected===q[3];
+ const answerRef=ref(db,`rooms/${room}/players/${playerId}`);
+ const existing=myData.answers||{};
+ if(existing[current]!==undefined){$("feedback").textContent="這題已記錄過，不能重複得分。";$("feedback").classList.remove("hidden");$("check").classList.add("hidden");$("next").classList.remove("hidden");return}
+ const nextData={...myData,nickname,score:(myData.score||0)+(correct?1:0),correct:(myData.correct||0)+(correct?1:0),answered:(myData.answered||0)+1,answers:{...existing,[current]:correct},lastUpdated:Date.now()};
+ await update(answerRef,nextData);myData=nextData;updateMyStatus();
+ document.querySelectorAll('input[name="answer"]').forEach(el=>el.disabled=true);
+ $("feedback").className="feedback "+(correct?"correct":"wrong");
+ $("feedback").innerHTML=`<strong>${correct?"✅ 答對了！":"📘 再記住這個觀念"}</strong><br>正確答案：<strong>${String.fromCharCode(65+q[3])}. ${q[2][q[3]]}</strong><br>${q[4]}`;
+ $("check").classList.add("hidden");$("next").classList.remove("hidden");$("next").textContent=current===qs.length-1?"領取通關角色":"下一題 →";
+});
+$("next").addEventListener("click",async()=>{
+ if(current<qs.length-1){current++;renderQuestion();return}
+ myData.finished=true;await update(ref(db,`rooms/${room}/players/${playerId}`),{finished:true});showResult();
+});
+function showResult(){
+ $("gameArea").classList.add("hidden");$("result").classList.remove("hidden");
+ const a=avatarFor(myData),rate=myData.answered?Math.round(myData.correct/myData.answered*100):0;
+ $("result").innerHTML=`<div class="bigavatar">${a.icon}</div><h2>任務完成！</h2><h3>${a.title}</h3><p style="font-size:1.3rem">⭐ ${myData.score||0} / ${qs.length} 分</p><p>答題正確率：${rate}%</p><p>你的角色會依積分、答題正確率與通關狀態產生。</p><button id="backBoard">查看全班排行榜</button>`;
+ $("backBoard").addEventListener("click",()=>{$("result").classList.add("hidden");$("gameArea").classList.remove("hidden");$("question").textContent="你已完成全部題目！可查看右側即時排行榜。";$("options").innerHTML="";$("check").classList.add("hidden");$("next").classList.add("hidden")});
+}
+</script>
+</body>
+</html>
